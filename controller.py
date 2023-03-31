@@ -1,16 +1,8 @@
 #!/usr/bin/env python3
 
-
-# Team ID:eYRC#HB#1776	
-# Author List:Dhanvantraj M, Vinoth B, Winston Doss, Madhusudhanan K		
-# Filename:		finalcontroller.py
-#Theme:		Hola bot
-#Functions: signal_handler, cleanup, endSignalCb, coordgen, graphgen, velocity,main
-
-################### IMPORT MODULES #######################
 import socket
 import time
-import signal		# To handle Signals by OS/user
+import signal		
 import sys		
 #for coordinates fxn
 import cv2
@@ -23,15 +15,14 @@ import rospy
 from std_msgs.msg import String
 from std_msgs.msg import Int32
 
-############################ Global Variables##################################
+############################Variables##################################
 
 ip = ""     #Enter IP address of laptop after connecting it to WIFI hotspot
 
 k=0
-t=1
 
 finalvel='x:'+str(0.00)+' y:'+str(0.00)+' z:'+str(0.00)
-prev_vel_x,prev_vel_y,prev_vel_z=0,0,0
+prevbex,prevbey,prevbetheta=0,0,0
 
 velocityPub=rospy.Publisher('/velocity',String,queue_size=10)
 velData=String()
@@ -47,7 +38,6 @@ penData = Int32()
 
 
 taskStatus.data = 0   #indicating start of the run
-penData.data=0        #Indicating pen pulled up
 
 
 #############################Functions##################################
@@ -66,7 +56,6 @@ def endSignalCb(status):
 	if(status.data):
 		cleanup()
 
-#coordinates generating f 
 def coordgen(img_location):
 	img = cv2.imread(img_location, cv2.IMREAD_UNCHANGED)
 	img=imutils.resize(img,width=500,height=500)
@@ -81,11 +70,6 @@ def coordgen(img_location):
 	global x_dL
 	global y_dL
 	global theta_dL
-	global t
-
-	global xListFinal
-	global yListFinal
-	global thetaListFinal
 
 
 	x_dL=[]
@@ -107,7 +91,7 @@ def coordgen(img_location):
 	cData.data = str([xListFinal,yListFinal])
 	contourPub.publish(cData)
 
-	x_dL,y_dL,theta_dL=xListFinal[t],yListFinal[t],thetaListFinal[t]
+	x_dL,y_dL,theta_dL=xListFinal[1],yListFinal[1],thetaListFinal[1]
 
 	'''x_dL=[350,150,150,350]
 	y_dL=[300,300,150,150]
@@ -119,8 +103,7 @@ def coordgen(img_location):
 		x_dL.append(x_dLval)
 		y_dL.append(y_dLval)
 		theta_dL.append(0)'''
-
-#graph generating 	
+	
 def graphgen():
 	global x_dL
 	global y_dL
@@ -152,17 +135,13 @@ def velocity(msg):
 	#x_dL,y_dL,theta_dL=coordgen('/home/winston/catkin_ws/src/hola_bot/scripts/snapchat.png')
 
 	global k
-	global t
-	global prev_vel_x
-	global prev_vel_y
-	global prev_vel_z
+	global prevbex
+	global prevbey
+	global prevbetheta
 	global finalvel
 	global x_dL
 	global y_dL
 	global theta_dL
-	global xListFinal
-	global yListFinal
-	global thetaListFinal
 
 	holax=msg.x
 	holay=msg.y
@@ -185,9 +164,9 @@ def velocity(msg):
 	rospy.loginfo("bex:{},bey:{},betheta:{}".format(bex,bey,betheta))
 
 	# Calculate the required velocity of bot for the next iteration(s)
-	vel_x=6*bex#-0.5*(prev_vel_x)
-	vel_y=6*bey #- 0.5*(prev_vel_y)
-	vel_z=30*betheta #- 0.5*(prev_vel_z)
+	vel_x=bex #2*(prevbex-bex)
+	vel_y=bey # 2*(prevbey-bey)
+	vel_z=30*betheta # 10*(prevbetheta-betheta)
 	#rospy.loginfo("vel_x:{},vel_y:{},vel_z:{}".format(vel_x,vel_y,vel_z))
 	# Find the required force vectors for individual wheels from it.(Inverse Kinematics)
 	uf=(vel_z+vel_x)/2
@@ -198,48 +177,31 @@ def velocity(msg):
 	ur=-ur
 	ul=-ul
 
-	prev_vel_x=vel_x
-	prev_vel_y=vel_y
-	prev_vel_z=vel_z
+	prevbex=bex
+	prevbey=bey
+	prevbetheta=betheta
 
-	#finalvel='x:'+str(round(ul,2))+' y:'+str(round(uf,2))+' z:'+str(round(ur,2))
-	finalvel='x:'+str(round(ur,2))+' y:'+str(round(uf,2))+' z:'+str(round(ul,2))
+	finalvel='x:'+str(round(ul,2))+' y:'+str(round(uf,2))+' z:'+str(round(ur,2))
 	#finalvel='x:'+str(round(uf,2))+' y:'+str(round(ur,2))+' z:'+str(round(ul,2))
 	#rospy.loginfo("hiii"+finalvel)
 
 	# Modify the condition to Switch to Next goal (given position in pixels instead of meters)
-	if(((abs(ex)-3)<=0) and ((abs(ey)-3)<=0) and ((abs(etheta)-0.5)<=0)):
+	if(((abs(ex)-3)<=0) and ((abs(ey)-3)<=0) and ((abs(etheta)-0.1)<=0)):
 		uf=0
 		ur=0
 		ul=0
-		if(k==0):
-			print("Pen pull down")#Write code for pen pull down
-			penData.data=1 #Indicating pen pulled down
-		k+=14
+		k+=1
 		if(k>=(len(x_dL))):
-			#endsig=0
-			#taskStatus.data=1
-			#taskStatusPub.publish(taskStatus.data)
-			t+=1
-			k=0
-			print("Pen pull up")
-			penData.data=0 #Indicating pen pulled up
-			#Pen pull up
-			if(t>=(len(xListFinal))):
-				taskStatus.data=1
-				taskStatusPub.publish(taskStatus.data)
-				rospy.signal_shutdown("Goals Reached")
-			
-			x_dL,y_dL,theta_dL=xListFinal[t],yListFinal[t],thetaListFinal[t]
-			
-			#cleanup()#check
-			#rospy.signal_shutdown("Goals Reached!")
+			endsig=0
+			taskStatus.data=1
+			taskStatusPub.publish(taskStatus.data)
+			cleanup()#check
+			rospy.signal_shutdown("Goals Reached!")
 
 
 		time.sleep(4)
 		rospy.loginfo("REEEEEEEEEEEEEAAAAAAAAAAAAAACCCCCCCCCCCCCCCCHHHHHHHHHHHHHHEEEEEEEEEEEEEEEEED")
-		#finalvel='x:'+str(round(ul,2))+' y:'+str(round(uf,2))+' z:'+str(round(ur,2))
-		finalvel='x:'+str(round(ur,2))+' y:'+str(round(uf,2))+' z:'+str(round(ul,2))
+		finalvel='x:'+str(round(ul,2))+' y:'+str(round(uf,2))+' z:'+str(round(ur,2))
 		
 		#finalvel='x:'+str(round(uf,2))+' y:'+str(round(ur,2))+' z:'+str(round(ul,2))
 	
@@ -258,7 +220,7 @@ def main():
 	rospy.init_node('Controller_node')
 	flag=0
 	if(flag==0):
-		coordgen('/home/winston/catkin_ws/src/hola_bot/scripts/robotFinal.png')
+		coordgen('/home/winston/catkin_ws/src/hola_bot/scripts/snapchat.png')
 	else:
 		graphgen()
 	rospy.Subscriber('/detected_aruco',aruco_data,velocity)

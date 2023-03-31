@@ -1,17 +1,8 @@
 #!/usr/bin/env python3
 
-
-# Team ID:eYRC#HB#1776		
-# Author List:Dhanvantraj M, Vinoth B, Winston Doss, Madhusudhanan K		
-# Filename:		aruco.py
-#Theme:		Hola bot
-#Functions:	coordinates,callback,main
-
-################### IMPORT MODULES #######################
-
 import socket
 import time
-import signal		# To handle Signals by OS/user
+import signal		
 import sys		
 #for coordinates fxn
 import cv2
@@ -25,7 +16,7 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
 
-####################### Global Variables#########################################
+#######################Variables#########################################
 ARUCO_DICT = {
 	"DICT_4X4_50": cv2.aruco.DICT_4X4_50,
 	"DICT_4X4_100": cv2.aruco.DICT_4X4_100,
@@ -57,29 +48,22 @@ rospy.loginfo("[INFO] starting video stream...")
 
 #Initializing publisher and odem message
 aruco_publisher = rospy.Publisher('detected_aruco', aruco_data,queue_size=20)#Mention queue size if required
-#aruco_msg: Stores aruco data published in /detected aruco topic
 aruco_msg = aruco_data()
 
 ###############################FUNCTIONS#########################################
 
-''' * Function Name: coordinates
-* Input: arucodictionary,arucoparams,vs
-* Output: originalcoord
-* Logic: Takes image and detects all aruco markers and returns centroid of aruco marker with id 6
-* Example Call: coordinates(ARUCODICTIONARY,ARUCOPARAMS,current_frame)
-'''
+#getting coordinates
 def coordinates(arucodictionary,arucoparams,vs):
     #Recieving frame and resize to 500x500
 	frame = vs
 	# detect ArUco markers in the input frame
 	(corners, ids, rejected) = cv2.aruco.detectMarkers(frame,arucodictionary, parameters=arucoparams)
 	if(len(corners)>0):
-		#ids: IDs of aruco markers
 		ids = ids.flatten()
 		for (markerCorner, markerID) in zip(corners, ids):
 			corners = markerCorner.reshape((4, 2))
 			(topLeft,topRight,bottomRight,bottomLeft) = corners
-			#topRight,bottomRight,bottomLeft,topLeft: tuple containing x,y coordinates of the corners of aruco markers
+
 			topRight = (int(topRight[0]), int(topRight[1]))
 			bottomRight = (int(bottomRight[0]), int(bottomRight[1]))
 			bottomLeft = (int(bottomLeft[0]), int(bottomLeft[1]))
@@ -90,15 +74,6 @@ def coordinates(arucodictionary,arucoparams,vs):
 			cv2.line(frame, bottomRight, bottomLeft, (0, 255, 0), 2)
 			cv2.line(frame, bottomLeft, topLeft, (0, 255, 0), 2)
 			#Finding the Centroid
-			x0,y0=topLeft
-			x1,y1=topRight
-			x2,y2=bottomRight
-			x3,y3=bottomLeft
-
-			a=0.5*((x0*y1-x1*y0)+(x1*y2-x2*y1)+(x2*y3-x3*y2)+(x3*y0-x0*y3))
-			cX=int(1/(6*a))*(((x0+x1)*(x0*y1-x1*y0))+((x1+x2)*(x1*y2-x2*y1))+((x2+x3)*(x2*y3-x3*y2))+((x3+x0)*(x3*y0-x0*y3)))
-			cY=int(1/(6*a))*(((y0+y1)*(x0*y1-x1*y0))+((y1+y2)*(x1*y2-x2*y1))+((y2+y3)*(x2*y3-x3*y2))+((y3+y0)*(x3*y0-x0*y3)))
-			#cX,cY: Centroid of ID 6 aruco marker
 			cX = int((topLeft[0] + bottomRight[0]) / 2.0)
 			cY = int((topLeft[1] + bottomRight[1]) / 2.0)
             #Marking the centre
@@ -124,7 +99,6 @@ def coordinates(arucodictionary,arucoparams,vs):
 				global holax,holay,c_edge_x,c_edge_y
 				holax=cX
 				holay=cY
-			
 				c_edge_x = (topLeft[0] + bottomLeft[0]) / 2.0
 				c_edge_y = (topLeft[1] + bottomLeft[1]) / 2.0
 			else:
@@ -155,13 +129,7 @@ def coordinates(arucodictionary,arucoparams,vs):
         #Publishing aruco msgs
 		aruco_publisher.publish(aruco_msg)
 		return originalcoord
-
-''' * Function Name: callback
-* Input: data
-* Output: none
-* Logic: Takes in video feed and resize the frame.And passes the frame to coordinates()
-* Example Call: callback()
-'''
+	
 def callback(data):
 	br = CvBridge()
 	get_frame = br.imgmsg_to_cv2(data, "mono8")
